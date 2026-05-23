@@ -21,7 +21,8 @@ final gardensProvider = FutureProvider<List<Garden>>((ref) async {
       .from('Garden')
       .select(
         'id, name, type, climate, irrigationType, '
-        'timerDurationMin, timerTimesPerDay, timerTimes, timerIntervalDays',
+        'timerDurationMin, timerTimesPerDay, timerTimes, timerIntervalDays, '
+        'potMaterial, potSizeL',
       )
       .eq('userId', _userId)
       .order('createdAt');
@@ -37,7 +38,8 @@ final gardenProvider =
       .from('Garden')
       .select(
         'id, name, type, climate, irrigationType, '
-        'timerDurationMin, timerTimesPerDay, timerTimes, timerIntervalDays',
+        'timerDurationMin, timerTimesPerDay, timerTimes, timerIntervalDays, '
+        'potMaterial, potSizeL',
       )
       .eq('id', gardenId)
       .single();

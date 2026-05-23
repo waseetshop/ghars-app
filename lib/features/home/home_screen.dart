@@ -557,7 +557,11 @@ class _CreateGardenSheetState extends State<_CreateGardenSheet> {
     }
   }
 
-  // ── Step 1: irrigation ─────────────────────────────────────
+  // ── Step 1: نوع الأصيص (للأصيص فقط) ────────────────────────
+  String _potMaterial = 'PLASTIC';
+  double _potSizeL    = 5.0;
+
+  // ── Step 1: irrigation (للحديقة فقط) ───────────────────────
   String _irrigationType    = 'MANUAL';
   int    _timerDurationMin  = 10;
   int    _timerTimesPerDay  = 1;
@@ -604,6 +608,8 @@ class _CreateGardenSheetState extends State<_CreateGardenSheet> {
         'type':            widget.initialType,
         'climate':         _climate,
         'irrigationType':  isPot ? 'MANUAL' : _irrigationType,
+        if (isPot) 'potMaterial': _potMaterial,
+        if (isPot) 'potSizeL':    _potSizeL,
       };
 
       if (!isPot && _irrigationType != 'MANUAL') {
@@ -697,7 +703,7 @@ class _CreateGardenSheetState extends State<_CreateGardenSheet> {
                 _StepDot(
                   active: _step == 1,
                   done: false,
-                  label: 'نظام السقي',
+                  label: widget.initialType == 'POT' ? 'نوع الأصيص' : 'نظام السقي',
                   onTap: _nameCtrl.text.trim().isNotEmpty
                       ? () => setState(() => _step = 1)
                       : null,
@@ -756,11 +762,8 @@ class _CreateGardenSheetState extends State<_CreateGardenSheet> {
                       setState(() => _error = 'يرجى إدخال اسم');
                       return;
                     }
-                    if (widget.initialType == 'POT') {
-                      _create(); // أصيص: يُنشأ مباشرة بدون خطوة السقي
-                    } else {
-                      setState(() { _step = 1; _error = null; });
-                    }
+                    // كلاهما ينتقل لـ Step 1 — أصيص (نوع المادة) أو حديقة (السقي)
+                    setState(() { _step = 1; _error = null; });
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: GharsColors.green,
@@ -791,8 +794,41 @@ class _CreateGardenSheetState extends State<_CreateGardenSheet> {
               ),
             ],
 
-            // ── Step 1: Irrigation ──────────────────────────
-            if (_step == 1) ...[
+            // ── Step 1-POT: نوع مادة الأصيص وحجمه ──────────────
+            if (_step == 1 && widget.initialType == 'POT') ...[
+              _PotMaterialStep(
+                selectedMaterial: _potMaterial,
+                selectedSizeL:    _potSizeL,
+                onMaterialChanged: (v) => setState(() => _potMaterial = v),
+                onSizeChanged:     (v) => setState(() => _potSizeL    = v),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _create,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: GharsColors.greenDark,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 20, height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: Colors.white),
+                        )
+                      : const Text('إضافة الأصيص',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+
+            // ── Step 1-GARDEN: Irrigation ────────────────────
+            if (_step == 1 && widget.initialType != 'POT') ...[
               Row(
                 children: [
                   GestureDetector(
@@ -2553,6 +2589,179 @@ class _AppDrawer extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Step 1 للأصيص: اختيار المادة والحجم ──────────────────────────────────────
+const _kPotMaterials = [
+  ('PLASTIC',    '🪣', 'بلاستيك',    'غير مسامي — يقلل الحاجة للسقي'),
+  ('TERRACOTTA', '🏺', 'فخار / طين', 'مسامي — يزيد الحاجة للسقي'),
+  ('CERAMIC',    '🫙', 'سيراميك',    'غير مسامي مزجّج — يقلل السقي'),
+  ('METAL',      '🥫', 'معدن',       'غير مسامي'),
+  ('WOOD',       '🪵', 'خشب',        'مسامي — يزيد الحاجة للسقي'),
+  ('FABRIC',     '🎒', 'كيس زراعي', 'مسامي جداً — يزيد السقي بشكل ملحوظ'),
+  ('CONCRETE',   '🧱', 'إسمنت',      'غير مسامي — يقلل الحاجة للسقي'),
+  ('OTHER',      '🪴', 'أخرى',       ''),
+];
+
+const _kPotSizes = [1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0, 50.0];
+
+class _PotMaterialStep extends StatelessWidget {
+  final String   selectedMaterial;
+  final double   selectedSizeL;
+  final void Function(String) onMaterialChanged;
+  final void Function(double) onSizeChanged;
+
+  const _PotMaterialStep({
+    required this.selectedMaterial,
+    required this.selectedSizeL,
+    required this.onMaterialChanged,
+    required this.onSizeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── تسمية المواد ───────────────────────────────────────
+        Row(
+          children: [
+            GestureDetector(
+              // ← زر الرجوع للخطوة السابقة موجود في الـ caller، نضع هنا تسمية فقط
+              child: const SizedBox.shrink(),
+            ),
+            const Text(
+              'مادة الأصيص',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: GharsColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // ── شبكة المواد 2 × N ─────────────────────────────────
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 2.8,
+          children: _kPotMaterials.map((m) {
+            final (key, emoji, label, sub) = m;
+            final selected = selectedMaterial == key;
+            return GestureDetector(
+              onTap: () => onMaterialChanged(key),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? GharsColors.green.withValues(alpha: 0.10)
+                      : GharsColors.charcoal700,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selected ? GharsColors.green : Colors.transparent,
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Text(emoji, style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                              color: selected
+                                  ? GharsColors.green
+                                  : GharsColors.textPrimary,
+                            ),
+                          ),
+                          if (sub.isNotEmpty)
+                            Text(
+                              sub,
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: GharsColors.textMuted,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+
+        const SizedBox(height: 20),
+
+        // ── حجم الأصيص ────────────────────────────────────────
+        const Text(
+          'حجم الأصيص',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: GharsColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 40,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            reverse: true,   // RTL: أصغر حجم على اليمين
+            itemCount: _kPotSizes.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (ctx, i) {
+              final size = _kPotSizes[i];
+              final sel  = selectedSizeL == size;
+              return GestureDetector(
+                onTap: () => onSizeChanged(size),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: sel
+                        ? GharsColors.green.withValues(alpha: 0.12)
+                        : GharsColors.charcoal700,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: sel ? GharsColors.green : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${size % 1 == 0 ? size.toInt() : size} L',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                        color: sel ? GharsColors.green : GharsColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
