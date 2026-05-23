@@ -10,6 +10,7 @@ import '../../models/garden.dart';
 import '../../models/plant.dart';
 import '../../providers/gardens_provider.dart';
 import '../../providers/agricultural_star_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/location_provider.dart';
 import '../../widgets/health_badge.dart';
 import '../plant_detail/plant_detail_screen.dart';
@@ -540,7 +541,21 @@ class _CreateGardenSheet extends StatefulWidget {
 class _CreateGardenSheetState extends State<_CreateGardenSheet> {
   // ── Step 0: basic info ─────────────────────────────────────
   final _nameCtrl = TextEditingController();
-  String _climate = 'HOT_ARID';
+  String _climate = 'HOT_ARID'; // يُحدَّث تلقائياً من موقع المستخدم
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedClimate();
+  }
+
+  Future<void> _loadSavedClimate() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(kLocationClimateKey);
+    if (saved != null && mounted) {
+      setState(() => _climate = saved);
+    }
+  }
 
   // ── Step 1: irrigation ─────────────────────────────────────
   String _irrigationType    = 'MANUAL';
@@ -729,67 +744,6 @@ class _CreateGardenSheetState extends State<_CreateGardenSheet> {
                         color: GharsColors.green, width: 1.5),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-
-              // climate
-              const Text(
-                'نوع المناخ',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: GharsColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: _climates.map((c) {
-                  final (key, label, emoji) = c;
-                  final selected = _climate == key;
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 6),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _climate = key),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? GharsColors.green.withValues(alpha: 0.12)
-                                : GharsColors.charcoal700,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: selected
-                                  ? GharsColors.green
-                                  : Colors.transparent,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(emoji,
-                                  style: const TextStyle(fontSize: 18)),
-                              const SizedBox(height: 3),
-                              Text(
-                                label,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: selected
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                  color: selected
-                                      ? GharsColors.green
-                                      : GharsColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
               ),
               const SizedBox(height: 20),
 
