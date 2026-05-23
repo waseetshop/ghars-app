@@ -10,6 +10,7 @@ import '../../models/garden.dart';
 import '../../models/plant.dart';
 import '../../providers/gardens_provider.dart';
 import '../../providers/agricultural_star_provider.dart';
+import '../../providers/location_provider.dart';
 import '../../widgets/health_badge.dart';
 import '../plant_detail/plant_detail_screen.dart';
 import '../add_plant/add_plant_screen.dart';
@@ -135,9 +136,11 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gardensAsync = ref.watch(gardensProvider);
+    final gardensAsync  = ref.watch(gardensProvider);
+    final locationAsync = ref.watch(locationDataProvider);
 
     return Scaffold(
+      drawer: _AppDrawer(locationAsync: locationAsync),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _pickCreateType(context, ref),
         backgroundColor: GharsColors.gold,
@@ -154,34 +157,65 @@ class HomeScreen extends ConsumerWidget {
             snap: true,
             backgroundColor: GharsColors.charcoal900,
             surfaceTintColor: Colors.transparent,
-            title: Row(
+            leading: Builder(
+              builder: (ctx) => IconButton(
+                icon: const Icon(Icons.menu_rounded, color: GharsColors.textSecondary),
+                tooltip: 'القائمة',
+                onPressed: () => Scaffold.of(ctx).openDrawer(),
+              ),
+            ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  'assets/images/logo.png',
-                  height: 32,
-                  width: 32,
-                  fit: BoxFit.contain,
+                Row(
+                  children: [
+                    Image.asset(
+                      'assets/images/logo.png',
+                      height: 26,
+                      width: 26,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'غَرْس',
+                      style: TextStyle(
+                        color: GharsColors.gold,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                const Text(
-                  'غَرْس',
-                  style: TextStyle(
-                    color: GharsColors.gold,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 22,
-                  ),
-                ),
+                locationAsync.whenOrNull(
+                  data: (loc) => loc == null
+                      ? null
+                      : Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Text(
+                            '${loc.climateEmoji} ${loc.label}',
+                            style: const TextStyle(
+                              color: GharsColors.textMuted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                ) ?? const SizedBox.shrink(),
               ],
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.logout_rounded, color: GharsColors.textMuted, size: 20),
-                tooltip: 'تسجيل الخروج',
-                onPressed: () async {
-                  await Supabase.instance.client.auth.signOut();
-                  // GoRouter redirect يتكفّل بالانتقال لشاشة الدخول تلقائياً
-                },
-              ),
+              // زر تغيير الموقع
+              locationAsync.whenOrNull(
+                data: (loc) => loc != null
+                    ? IconButton(
+                        icon: const Icon(Icons.edit_location_alt_outlined,
+                            color: GharsColors.textMuted, size: 20),
+                        tooltip: 'تغيير الموقع',
+                        onPressed: () => context.go('/location'),
+                      )
+                    : null,
+              ) ?? const SizedBox.shrink(),
             ],
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(1),
@@ -2409,6 +2443,159 @@ class _TypeTile extends StatelessWidget {
             Text(subtitle,
                 style: const TextStyle(
                     fontSize: 12, color: GharsColors.textMuted)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Drawer القائمة الجانبية ───────────────────────────────────────────────────
+class _AppDrawer extends ConsumerWidget {
+  final AsyncValue<LocationData?> locationAsync;
+  const _AppDrawer({required this.locationAsync});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user  = Supabase.instance.client.auth.currentUser;
+    final email = user?.email ?? '';
+    final name  = user?.userMetadata?['full_name'] as String? ?? '';
+
+    return Drawer(
+      backgroundColor: GharsColors.charcoal800,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header: معلومات الحساب ─────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: GharsColors.green.withValues(alpha: 0.18),
+                    child: const Text('🌱', style: TextStyle(fontSize: 24)),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (name.isNotEmpty)
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              color: GharsColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        Text(
+                          email,
+                          style: const TextStyle(
+                            color: GharsColors.textMuted,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Divider(height: 1, color: GharsColors.charcoal700),
+            const SizedBox(height: 8),
+
+            // ── Tile: الموقع والمناخ ───────────────────────────
+            locationAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (e, _) => const SizedBox.shrink(),
+              data: (loc) => ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: GharsColors.charcoal700,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      loc?.climateEmoji ?? '📍',
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  ),
+                ),
+                title: Text(
+                  loc?.label ?? 'اختر موقعك',
+                  style: const TextStyle(
+                    color: GharsColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: loc != null
+                    ? Text(
+                        loc.climateLabel,
+                        style: const TextStyle(
+                          color: GharsColors.textMuted,
+                          fontSize: 12,
+                        ),
+                      )
+                    : null,
+                trailing: const Icon(
+                  Icons.edit_location_alt_outlined,
+                  color: GharsColors.textMuted,
+                  size: 18,
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/location');
+                },
+              ),
+            ),
+
+            const Spacer(),
+
+            Divider(height: 1, color: GharsColors.charcoal700),
+
+            // ── Tile: تسجيل الخروج ─────────────────────────────
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: GharsColors.critical.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.logout_rounded,
+                  color: GharsColors.critical,
+                  size: 20,
+                ),
+              ),
+              title: const Text(
+                'تسجيل الخروج',
+                style: TextStyle(
+                  color: GharsColors.critical,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                await Supabase.instance.client.auth.signOut();
+              },
+            ),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),
